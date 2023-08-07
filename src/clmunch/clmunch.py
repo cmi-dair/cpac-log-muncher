@@ -21,6 +21,8 @@ TEMPLATE_REPORT_MD = """# CPAC run report
 
 {details}
 
+<hr>
+
 {footer}
 
 """
@@ -104,7 +106,7 @@ def main():
 
     report = TEMPLATE_REPORT_MD.format(
         header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
-        footer=f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        footer=f"*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
         summary=df[["pipeline_config", "duration", "success"]].to_markdown(index=False),
         details=details,
     )

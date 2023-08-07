@@ -135,7 +135,7 @@ def extract_info(log_file: pl.Path):
         diff = max_time - min_time
 
     # fallback to command line argument or filename
-    if cpac_pipeline_config is None:
+    if cpac_pipeline_config is None and not cpac_command is None:
         cpac_pipeline_config = (
             fb.group(1)
             if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command))

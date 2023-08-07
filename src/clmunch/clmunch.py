@@ -4,6 +4,7 @@ from datetime import datetime
 import pandas as pd
 import argparse
 import numpy as np
+from typing import List, Dict, Any
 
 ICO_SUCCESS = "&#9989;"
 ICO_FAILURE = "&#10060;"
@@ -144,6 +145,10 @@ def extract_info(log_file: pl.Path):
     if cpac_pipeline_config is None:
         cpac_pipeline_config = str(log_file)
 
+    
+    for crashfile in log_file.parent.glob('../../crash-*.txt'):
+        print(crashfile)
+
     return {
         "file": log_file,
         "start": min_time,
@@ -154,6 +159,8 @@ def extract_info(log_file: pl.Path):
         "subject_workflow": cpac_subject_workflow,
         "success": cpac_success and not cpac_error,
     }
+
+
 
 
 if __name__ == "__main__":

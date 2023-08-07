@@ -44,8 +44,8 @@ def crashfile_to_md(crashfile: pl.Path):
     with open(crashfile, "r") as f:
         crashfile_content = f.read()
         return TEMPLATE_SPOILER_MD.format(
-            summary=f"Crashfile `{crashfile.name}`",
-            details=f"```{crashfile_content}```",
+            summary=f"Crashfile <code>{crashfile.name}</code>",
+            details=f"```Python\n{crashfile_content}```",
         )
 
 

@@ -44,8 +44,26 @@ def crashfile_to_md(crashfile: pl.Path):
     with open(crashfile, "r") as f:
         crashfile_content = f.read()
         return TEMPLATE_SPOILER_MD.format(
-            summary=f"Crashfile {crashfile.name}", details=crashfile_content
+            summary=f"Crashfile `{crashfile.name}`",
+            details=f"```{crashfile_content}```",
         )
+
+
+def make_details(stats: Dict[str, Any]):
+    crashfiles_md = "\n".join(
+        [crashfile_to_md(crashfile) for crashfile in stats["crashfiles"]]
+    )
+
+    del stats["crashfiles"]
+
+    details_md = TEMPLATE_ENTRY_MD.format(
+        file=stats["pipeline_config"],
+        details=pd.DataFrame(
+            {"key": stats.keys(), "value": stats.values()}
+        ).to_markdown(index=False),
+    )
+
+    return details_md + crashfiles_md
 
 
 def main():
@@ -68,22 +86,7 @@ def main():
 
     df["pipeline_config"] = df["pipeline_config"].apply(lambda x: f"[{x}](#{x})")
 
-    details = "\n".join(
-        [
-            (
-                TEMPLATE_ENTRY_MD.format(
-                    file=x["pipeline_config"],
-                    details=pd.DataFrame(
-                        {"key": x.keys(), "value": x.values()}
-                    ).to_markdown(index=False),
-                )
-                + "\n".join(
-                    [crashfile_to_md(crashfile) for crashfile in x["crashfiles"]]
-                )
-            )
-            for x in stats
-        ]
-    )
+    details = "\n".join([make_details(x) for x in stats])
 
     report = TEMPLATE_REPORT_MD.format(
         header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",

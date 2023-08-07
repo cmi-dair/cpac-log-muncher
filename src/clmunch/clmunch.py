@@ -136,7 +136,7 @@ def extract_info(log_file: pl.Path):
 
     # fallback to command line argument or filename
     if cpac_pipeline_config is None:
-        cpac_pipeline_config = fb.group(1) if (fb := re.match(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command)) else None
+        cpac_pipeline_config = fb.group(1) if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command)) else None
     if cpac_pipeline_config is None:
         cpac_pipeline_config = str(log_file)
 

@@ -63,7 +63,21 @@ def make_details(stats: Dict[str, Any]):
         ).to_markdown(index=False),
     )
 
+    if not stats["success"]:
+        logfile_tail = file_tail(stats["file"], 100)
+
+        crashfiles_md += "\n" + TEMPLATE_SPOILER_MD.format(
+            summary="Last 100 lines of logfile",
+            details=f"```log\n{logfile_tail}```",
+        )
+
     return details_md + crashfiles_md
+
+
+def file_tail(file: pl.Path, n: int = 10):
+    with open(file, "r", encoding="UTF-8") as f:
+        lines = f.readlines()
+        return "".join(lines[-n:])
 
 
 def main():

@@ -46,10 +46,10 @@ def main():
 
     df = pd.DataFrame.from_records(stats)
 
-    df['success_state'] = df['success']
-    df['success'] = np.where(df['success'], ICO_SUCCESS, ICO_FAILURE)
+    df["success_state"] = df["success"]
+    df["success"] = np.where(df["success"], ICO_SUCCESS, ICO_FAILURE)
 
-    df['pipeline_config'] = df['pipeline_config'].apply(lambda x: f'[{x}](#{x})')
+    df["pipeline_config"] = df["pipeline_config"].apply(lambda x: f"[{x}](#{x})")
 
     report = TEMPLATE_REPORT_MD.format(
         header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
@@ -136,7 +136,11 @@ def extract_info(log_file: pl.Path):
 
     # fallback to command line argument or filename
     if cpac_pipeline_config is None:
-        cpac_pipeline_config = fb.group(1) if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command)) else None
+        cpac_pipeline_config = (
+            fb.group(1)
+            if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command))
+            else None
+        )
     if cpac_pipeline_config is None:
         cpac_pipeline_config = str(log_file)
 

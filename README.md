@@ -1,21 +1,4 @@
-# CMI-DAIR Template Python Repository
-
-This is a template repository. Below is a checklist of things you should do to use it:
-
-- [x] Rewrite this `README` file, updating the badges as needed.
-- [ ] Update the pre-commit versions in `.pre-commit-config.yaml`.
-- [ ] Install the `pre-commit` hooks.
-- [ ] Update the `LICENSE` file to your desired license and set the year.
-- [ ] Replace "ENTER_YOUR_EMAIL_ADDRESS" in `CODE_OF_CONDUCT.md`
-- [ ] Replace "ENTER_YOUR_EMAIL_ADDRESS" in `SECURITY.md` and update the supported versions or, if not relevant, delete this file.
-- [ ] Remove the placeholder src and test files, these are there merely to show how the CI works.
-- [x] Update `pyproject.toml`
-- [x] Update the name of `src/APP_NAME`
-- [ ] Grant third-party app permissions (e.g. Codecov) [here](https://github.com/organizations/cmi-dair/settings/installations), if necessary.
-- [ ] Either generate a `CODECOV_TOKEN` secret [here](https://github.com/cmi-dair/flowdump/blob/main/.github/workflows/python_tests.yaml) (if its a private repository) or remove the line `token: ${{ secrets.CODECOV_TOKEN }}`
-- [ ] API docs website: After the first successful build, go to the `Settings` tab of your repository, scroll down to the `GitHub Pages` section, and select `gh-pages` as the source. This will generate a link to your API docs.
-
-# Project name
+# C-PAC log muncher (`clmunch`)
 
 [![Build](https://github.com/cmi-dair/cpac-log-muncher/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/cmi-dair/cpac-log-muncher/actions/workflows/test.yaml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/cmi-dair/cpac-log-muncher/branch/main/graph/badge.svg?token=22HWWFWPW5)](https://codecov.io/gh/cmi-dair/cpac-log-muncher)
@@ -23,38 +6,27 @@ This is a template repository. Below is a checklist of things you should do to u
 [![L-GPL License](https://img.shields.io/badge/license-L--GPL-blue.svg)](https://github.com/cmi-dair/cpac-log-muncher/blob/main/LICENSE)
 [![pages](https://img.shields.io/badge/api-docs-blue)](https://cmi-dair.github.io/cpac-log-muncher)
 
-What problem does this tool solve?
-
-## Features
-
-- A few
-- Cool
-- Things
 
 ## Installation
 
-Install this package via :
-
-```sh
-pip install clmunch
-```
-
-Or get the newest development version via:
+Get the newest development version via:
 
 ```sh
 pip install git+https://github.com/cmi-dair/cpac-log-muncher
 ```
 
-## Quick start
+## Usage
 
-Short tutorial, maybe with a
+```sh
+usage: clmunch [-h] [-o OUTPUT] path
 
-```Python
-import clmunch
+Generate a report on CPAC runs.
 
-clmunch.short_example()
+positional arguments:
+  path                  Path to the directory containing the log files.
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT, --output OUTPUT
+                        Path to the output file.
 ```
-
-## Links or References
-
-- [https://www.wikipedia.de](https://www.wikipedia.de)

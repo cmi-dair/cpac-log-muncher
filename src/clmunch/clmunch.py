@@ -37,7 +37,7 @@ def main():
         "path", type=str, help="Path to the directory containing the log files."
     )
     parser.add_argument(
-        "--output", type=str, help="Path to the output file.", required=False
+        "-o", "--output", type=str, help="Path to the output file.", required=False
     )
     args = parser.parse_args()
 
@@ -136,7 +136,7 @@ def extract_info(log_file: pl.Path):
 
     # fallback to command line argument or filename
     if cpac_pipeline_config is None:
-        cpac_pipeline_config = re.match(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command).group(1)
+        cpac_pipeline_config = fb.group(1) if (fb := re.match(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command)) else None
     if cpac_pipeline_config is None:
         cpac_pipeline_config = str(log_file)
 

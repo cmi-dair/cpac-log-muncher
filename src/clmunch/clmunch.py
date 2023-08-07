@@ -89,6 +89,8 @@ RX_CPAC_END_SUBJECT_WORKFLOW = re.compile(r"^\s*Subject workflow: (.*)$")
 RC_CPAC_END_SUCCESS = re.compile(r"^\s*CPAC run complete:\s*$")
 RC_CPAC_END_ERROR = re.compile(r"^\s*CPAC run error:\s*$")
 
+RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK = re.compile(r"--preconfig\s*(\S+)")
+
 
 def extract_info(log_file: pl.Path):
     min_time = None
@@ -131,6 +133,12 @@ def extract_info(log_file: pl.Path):
     # calculate difference
     if max_time is not None and min_time is not None:
         diff = max_time - min_time
+
+    # fallback to command line argument or filename
+    if cpac_pipeline_config is None:
+        cpac_pipeline_config = re.match(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command).group(1)
+    if cpac_pipeline_config is None:
+        cpac_pipeline_config = str(log_file)
 
     return {
         "file": log_file,

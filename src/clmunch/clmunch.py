@@ -31,6 +31,22 @@ TEMPLATE_ENTRY_MD = """### {file}
 
 """
 
+TEMPLATE_SPOILER_MD = """<details>
+<summary>{summary}</summary>
+
+{details}
+
+</details>
+"""
+
+
+def crashfile_to_md(crashfile: pl.Path):
+    with open(crashfile, "r") as f:
+        crashfile_content = f.read()
+        return TEMPLATE_SPOILER_MD.format(
+            summary=f"Crashfile {crashfile.name}", details=crashfile_content
+        )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Generate a report on CPAC runs.")
@@ -52,21 +68,28 @@ def main():
 
     df["pipeline_config"] = df["pipeline_config"].apply(lambda x: f"[{x}](#{x})")
 
-    report = TEMPLATE_REPORT_MD.format(
-        header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
-        footer=f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        summary=df[["pipeline_config", "duration", "success"]].to_markdown(index=False),
-        details="\n".join(
-            [
+    details = "\n".join(
+        [
+            (
                 TEMPLATE_ENTRY_MD.format(
                     file=x["pipeline_config"],
                     details=pd.DataFrame(
                         {"key": x.keys(), "value": x.values()}
                     ).to_markdown(index=False),
                 )
-                for x in stats
-            ]
-        ),
+                + "\n".join(
+                    [crashfile_to_md(crashfile) for crashfile in x["crashfiles"]]
+                )
+            )
+            for x in stats
+        ]
+    )
+
+    report = TEMPLATE_REPORT_MD.format(
+        header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
+        footer=f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        summary=df[["pipeline_config", "duration", "success"]].to_markdown(index=False),
+        details=details,
     )
 
     if args.output:
@@ -145,9 +168,7 @@ def extract_info(log_file: pl.Path):
     if cpac_pipeline_config is None:
         cpac_pipeline_config = str(log_file)
 
-    
-    for crashfile in log_file.parent.glob('../../crash-*.txt'):
-        print(crashfile)
+    crashfiles = list(log_file.parent.glob("../../crash-*.txt"))
 
     return {
         "file": log_file,
@@ -158,9 +179,8 @@ def extract_info(log_file: pl.Path):
         "pipeline_config": cpac_pipeline_config,
         "subject_workflow": cpac_subject_workflow,
         "success": cpac_success and not cpac_error,
+        "crashfiles": crashfiles,
     }
-
-
 
 
 if __name__ == "__main__":

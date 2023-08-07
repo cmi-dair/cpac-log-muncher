@@ -3,6 +3,10 @@ import re
 from datetime import datetime
 import pandas as pd
 import argparse
+import numpy as np
+
+ICO_SUCCESS = "&#9989;"
+ICO_FAILURE = "&#10060;"
 
 TEMPLATE_REPORT_MD = """# CPAC run report
 
@@ -42,10 +46,13 @@ def main():
 
     df = pd.DataFrame.from_records(stats)
 
-    df['success'] = '&#9989;' if df['success'] else '&#10060;'
+    df['success_state'] = df['success']
+    df['success'] = np.where(df['success'], ICO_SUCCESS, ICO_FAILURE)
+
+    df['pipeline_config'] = df['pipeline_config'].apply(lambda x: f'[{x}](#{x})')
 
     report = TEMPLATE_REPORT_MD.format(
-        header=f"Ran {len(stats)} CPAC pipelines with {df['success'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
+        header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
         footer=f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         summary=df[["pipeline_config", "duration", "success"]].to_markdown(index=False),
         details="\n".join(

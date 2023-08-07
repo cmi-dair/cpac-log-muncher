@@ -42,6 +42,8 @@ def main():
 
     df = pd.DataFrame.from_records(stats)
 
+    df['success'] = '&#9989;' if df['success'] else '&#10060;'
+
     report = TEMPLATE_REPORT_MD.format(
         header=f"Ran {len(stats)} CPAC pipelines with {df['success'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
         footer=f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",

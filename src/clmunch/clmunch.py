@@ -130,6 +130,7 @@ RX_CPAC_END_PIPELINE_CONFIG = re.compile(r"^\s*Pipeline configuration: (.*)$")
 RX_CPAC_END_SUBJECT_WORKFLOW = re.compile(r"^\s*Subject workflow: (.*)$")
 
 RC_CPAC_END_SUCCESS = re.compile(r"^\s*CPAC run complete:\s*$")
+RC_CPAC_END_SUCCESS_TEST_CONFIG = re.compile(r"^\s*the pipeline was built successfully, but was not run\s*$")
 RC_CPAC_END_ERROR = re.compile(r"^\s*CPAC run error:\s*$")
 
 RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK = re.compile(r"--preconfig\s*(\S+)")
@@ -140,6 +141,7 @@ def extract_info(log_file: pl.Path):
     max_time = None
 
     cpac_command = None
+    cpac_test_config = None
     cpac_version = None
     cpac_pipeline_config = None
     cpac_subject_workflow = None
@@ -162,13 +164,14 @@ def extract_info(log_file: pl.Path):
 
             elif match := re.match(RX_CPAC_COMMAND, line):
                 cpac_command = match.group(1)
+                cpac_test_config = ' test_config ' in cpac_command
             elif match := re.match(RX_CPAC_VERSION, line):
                 cpac_version = match.group(1)
             elif match := re.match(RX_CPAC_END_PIPELINE_CONFIG, line):
                 cpac_pipeline_config = match.group(1)
             elif match := re.match(RX_CPAC_END_SUBJECT_WORKFLOW, line):
                 cpac_subject_workflow = match.group(1)
-            elif match := re.match(RC_CPAC_END_SUCCESS, line):
+            elif (match := re.match(RC_CPAC_END_SUCCESS, line)) or (cpac_test_config and (match := re.match(RC_CPAC_END_SUCCESS_TEST_CONFIG, line))):
                 cpac_success = True
             elif match := re.match(RC_CPAC_END_ERROR, line):
                 cpac_error = True

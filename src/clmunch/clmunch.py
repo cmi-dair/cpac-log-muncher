@@ -130,7 +130,7 @@ RX_CPAC_END_PIPELINE_CONFIG = re.compile(r"^\s*Pipeline configuration: (.*)$")
 RX_CPAC_END_SUBJECT_WORKFLOW = re.compile(r"^\s*Subject workflow: (.*)$")
 
 RC_CPAC_END_SUCCESS = re.compile(r"^\s*CPAC run complete:\s*$")
-RC_CPAC_END_SUCCESS_TEST_CONFIG = re.compile(r"^\s*the pipeline was built successfully, but was not run\s*$")
+RC_CPAC_END_SUCCESS_TEST_CONFIG = re.compile(r"^\s*This has been a test of the pipeline configuration file, the pipeline was built successfully, but was not run\s*$")
 RC_CPAC_END_ERROR = re.compile(r"^\s*CPAC run error:\s*$")
 
 RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK = re.compile(r"--preconfig\s*(\S+)")

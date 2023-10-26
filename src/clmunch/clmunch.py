@@ -60,6 +60,7 @@ def make_details(stats: Dict[str, Any]):
     del stats["crashfiles"]
 
     success = stats["success"]
+    file = stats["file"]
 
     stats["success"] = ICO_SUCCESS if success else ICO_FAILURE
 
@@ -78,7 +79,7 @@ def make_details(stats: Dict[str, Any]):
     )
 
     if not success:
-        logfile_tail = file_tail(stats["file"], 100)
+        logfile_tail = file_tail(file, 100)
 
         crashfiles_md += "\n" + TEMPLATE_SPOILER_MD.format(
             summary="Last 100 lines of logfile",

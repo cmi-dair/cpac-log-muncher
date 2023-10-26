@@ -63,7 +63,7 @@ def make_details(stats: Dict[str, Any]):
 
     stats["success"] = ICO_SUCCESS if success else ICO_FAILURE
 
-    stats["command"] = '<br/>'.join(shlex.split(stats["command"]))
+    stats["command"] = "<br/>".join(shlex.split(stats["command"]))
     stats["command"] = f"<code>{stats['command']}</code>"
 
     # monospace fields
@@ -217,7 +217,7 @@ def extract_info(log_file: pl.Path, base_dir: pl.Path):
         diff = max_time - min_time
 
     # fallback to command line argument or filename
-    if cpac_pipeline_config is None and not cpac_command is None:
+    if cpac_pipeline_config is None and cpac_command is not None:
         cpac_pipeline_config = (
             fb.group(1)
             if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, cpac_command))

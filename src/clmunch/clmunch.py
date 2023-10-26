@@ -4,7 +4,8 @@ from datetime import datetime
 import pandas as pd
 import argparse
 import numpy as np
-from typing import List, Dict, Any
+from typing import Dict, Any
+import shlex
 
 ICO_SUCCESS = "&#9989;"
 ICO_FAILURE = "&#10060;"
@@ -58,6 +59,17 @@ def make_details(stats: Dict[str, Any]):
 
     del stats["crashfiles"]
 
+    success = stats["success"]
+
+    stats["success"] = ICO_SUCCESS if success else ICO_FAILURE
+
+    stats["command"] = '<br/>'.join(shlex.split(stats["command"]))
+    stats["command"] = f"<code>{stats['command']}</code>"
+
+    # monospace fields
+    for k in ["file", "version"]:
+        stats[k] = f"`{stats[k]}`"
+
     details_md = TEMPLATE_ENTRY_MD.format(
         file=stats["pipeline_config"],
         details=pd.DataFrame(
@@ -65,7 +77,7 @@ def make_details(stats: Dict[str, Any]):
         ).to_markdown(index=False),
     )
 
-    if not stats["success"]:
+    if not success:
         logfile_tail = file_tail(stats["file"], 100)
 
         crashfiles_md += "\n" + TEMPLATE_SPOILER_MD.format(
@@ -82,6 +94,20 @@ def file_tail(file: pl.Path, n: int = 10):
         return "".join(lines[-n:])
 
 
+RX_MARKDOWN_HEADING_ID_LEGAL_CHARS = re.compile(r"[^0-9a-zA-Z_-]")
+
+
+def markdown_heading_to_id(heading: str):
+    """Convert a markdown heading to a valid id to link to via (my link)[#id]."""
+    return RX_MARKDOWN_HEADING_ID_LEGAL_CHARS.sub("", heading.lower())
+
+
+def markdown_heading_to_link(heading: str, title: str | None = None):
+    """Convert a markdown heading to a link."""
+    title = heading if title is None else title
+    return f"[{title}](#{markdown_heading_to_id(heading)})"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate a report on CPAC runs.")
     parser.add_argument(
@@ -92,20 +118,25 @@ def main():
     )
     args = parser.parse_args()
 
-    log_files = find_log_files(pl.Path(args.path))
-    stats = [extract_info(pl.Path(f)) for f in log_files]
+    path_searchdir = pl.Path(args.path)
+    log_files = find_log_files(path_searchdir)
+    stats = [extract_info(pl.Path(f), path_searchdir) for f in log_files]
 
     df = pd.DataFrame.from_records(stats)
 
     df["success_state"] = df["success"]
     df["success"] = np.where(df["success"], ICO_SUCCESS, ICO_FAILURE)
 
-    df["pipeline_config"] = df["pipeline_config"].apply(lambda x: f"[{x}](#{x})")
+    df["pipeline_config"] = df["pipeline_config"].apply(
+        lambda x: markdown_heading_to_link(x)
+    )
 
     details = "\n".join([make_details(x) for x in stats])
 
     report = TEMPLATE_REPORT_MD.format(
-        header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100}% success rate.\n\nSlowest pipeline took {df['duration'].max()}.",
+        header=f"Ran {len(stats)} CPAC pipelines with {df['success_state'].sum() / len(stats) * 100:.2f}% success rate.\n\n"
+        f"Slowest pipeline took {df['duration'].max()} (first until last log message).\n\n"
+        f"Pipelines found in <code>{path_searchdir}</code>.\n\n",
         footer=f"*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
         summary=df[["pipeline_config", "duration", "success"]].to_markdown(index=False),
         details=details,
@@ -130,13 +161,15 @@ RX_CPAC_END_PIPELINE_CONFIG = re.compile(r"^\s*Pipeline configuration: (.*)$")
 RX_CPAC_END_SUBJECT_WORKFLOW = re.compile(r"^\s*Subject workflow: (.*)$")
 
 RC_CPAC_END_SUCCESS = re.compile(r"^\s*CPAC run complete:\s*$")
-RC_CPAC_END_SUCCESS_TEST_CONFIG = re.compile(r"^\s*This has been a test of the pipeline configuration file, the pipeline was built successfully, but was not run\s*$")
+RC_CPAC_END_SUCCESS_TEST_CONFIG = re.compile(
+    r"^\s*This has been a test of the pipeline configuration file, the pipeline was built successfully, but was not run\s*$"
+)
 RC_CPAC_END_ERROR = re.compile(r"^\s*CPAC run error:\s*$")
 
 RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK = re.compile(r"--preconfig\s*(\S+)")
 
 
-def extract_info(log_file: pl.Path):
+def extract_info(log_file: pl.Path, base_dir: pl.Path):
     min_time = None
     max_time = None
 
@@ -164,14 +197,17 @@ def extract_info(log_file: pl.Path):
 
             elif match := re.match(RX_CPAC_COMMAND, line):
                 cpac_command = match.group(1)
-                cpac_test_config = ' test_config ' in cpac_command
+                cpac_test_config = " test_config " in cpac_command
             elif match := re.match(RX_CPAC_VERSION, line):
                 cpac_version = match.group(1)
             elif match := re.match(RX_CPAC_END_PIPELINE_CONFIG, line):
                 cpac_pipeline_config = match.group(1)
             elif match := re.match(RX_CPAC_END_SUBJECT_WORKFLOW, line):
                 cpac_subject_workflow = match.group(1)
-            elif (match := re.match(RC_CPAC_END_SUCCESS, line)) or (cpac_test_config and (match := re.match(RC_CPAC_END_SUCCESS_TEST_CONFIG, line))):
+            elif (match := re.match(RC_CPAC_END_SUCCESS, line)) or (
+                cpac_test_config
+                and (match := re.match(RC_CPAC_END_SUCCESS_TEST_CONFIG, line))
+            ):
                 cpac_success = True
             elif match := re.match(RC_CPAC_END_ERROR, line):
                 cpac_error = True
@@ -188,7 +224,7 @@ def extract_info(log_file: pl.Path):
             else None
         )
     if cpac_pipeline_config is None:
-        cpac_pipeline_config = str(log_file)
+        cpac_pipeline_config = str(log_file.relative_to(base_dir))
 
     crashfiles = list(log_file.parent.glob("../../crash-*.txt"))
 

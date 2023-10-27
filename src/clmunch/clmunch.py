@@ -163,7 +163,9 @@ class CpacRun:
             "File": f"`{self.log_file.absolute()}`",
             "Start": self.start,
             "Duration": self.diff,
-            "Command": "<code>" + "<br/>".join(shlex.split(self.command)) + "</code>",
+            "Command": ""
+            if self.command is None
+            else ("<code>" + "<br/>".join(shlex.split(self.command)) + "</code>"),
             "Version": f"`{self.version}`",
             "Pipeline Config": self.pipeline_config,
             "Subject Workflow": self.subject_workflow,

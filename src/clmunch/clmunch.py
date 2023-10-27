@@ -27,10 +27,10 @@ RC_CPAC_END_ERROR = re.compile(r"^\s*CPAC run error:\s*$")
 RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK = re.compile(r"--preconfig\s*(\S+)")
 
 RX_CPAC_ERROR1_LOOKUP = re.compile(
-    r"LookupError: When trying to connect node block '([^']+)' to workflow '([^']+)' after node block '([^']+)':\s+\[!\] C-PAC says: None of the listed resources are in the resource pool:\s+(.*)$"
+    r"LookupError: When trying to connect node block '([^']+)' to workflow '([^']+)' after node block '([^']+)':\s+\[!\] C-PAC says: None of the listed resources are in the resource pool:\s+" + "([^\n]*)"
 )
 RX_CPAC_ERROR2_LOOKUP = re.compile(
-    r"LookupError: When trying to connect node block '([^']+)' to workflow '([^']+)' after node block '([^']+)':\s+\[!\] C-PAC says: None of the listed resources in the node block being connected exist in the resource pool\.\s+Resources:\s+(.*)$"
+    r"LookupError: When trying to connect node block '([^']+)' to workflow '([^']+)' after node block '([^']+)':\s+\[!\] C-PAC says: None of the listed resources in the node block being connected exist in the resource pool\.\s+Resources:\s+" + "([^\n]*)"
 )
 
 
@@ -78,13 +78,17 @@ class CpacRun:
         self.version: str | None = None
         self.pipeline_config: str | None = None
         self.subject_workflow: str | None = None
+        self.error_info: dict[str, str] | None = None
 
         cpac_success = False
         cpac_error = False
 
+        log_text = ""
+
         # read line by line
         with open(log_file, "r", encoding="UTF-8") as f:
             while line := f.readline():
+                log_text += line
                 # match with regex
                 if match := re.match(RX_TIMESTAMP, line):
                     # convert to datetime object
@@ -111,6 +115,22 @@ class CpacRun:
                     cpac_success = True
                 elif match := re.match(RC_CPAC_END_ERROR, line):
                     cpac_error = True
+
+        if cpac_error or not cpac_success:
+            if match := re.search(RX_CPAC_ERROR1_LOOKUP, log_text):
+                self.error_info = {
+                    "node_block": match.group(1),
+                    "target_work_flow": match.group(2),
+                    "previous_node_block": match.group(3),
+                    "missing_resources": match.group(4),
+                }
+            elif match := re.search(RX_CPAC_ERROR2_LOOKUP, log_text):
+                self.error_info = {
+                    "node_block": match.group(1),
+                    "target_work_flow": match.group(2),
+                    "previous_node_block": match.group(3),
+                    "missing_resources": match.group(4),
+                }
 
         # calculate difference
         if max_time is not None and min_time is not None:
@@ -218,6 +238,13 @@ class CpacRunCollection:
             ["pipeline_config", "duration", "success"]
         ].to_markdown(index=False)
 
+        # Error table
+        md_table_errors: str | None = None
+        error_records = [x.error_info for x in self.runs if x.error_info is not None]
+        if len(error_records) > 0:
+            df_errors = pd.DataFrame.from_records(error_records)
+            md_table_errors = df_errors.to_markdown(index=False)
+
         # Intro text
         md_intro_text = (
             f"Ran {len(self.runs)} CPAC pipelines with {df_overview['success_state'].sum() / len(self.runs) * 100:.2f}% success rate.\n\n"
@@ -234,7 +261,7 @@ class CpacRunCollection:
         return TEMPLATE_REPORT_MD.format(
             header=md_intro_text,
             footer=md_footer,
-            summary=md_table_overview,
+            summary=md_table_overview + ("" if md_table_errors is None else ("\n\n" + md_table_errors)),
             details=md_details,
         )
 

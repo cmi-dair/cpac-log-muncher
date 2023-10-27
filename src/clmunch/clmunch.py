@@ -119,6 +119,7 @@ class CpacRun:
         if cpac_error or not cpac_success:
             if match := re.search(RX_CPAC_ERROR1_LOOKUP, log_text):
                 self.error_info = {
+                    "pipeline": self.pipeline_config,
                     "node_block": match.group(1),
                     "target_work_flow": match.group(2),
                     "previous_node_block": match.group(3),
@@ -126,6 +127,7 @@ class CpacRun:
                 }
             elif match := re.search(RX_CPAC_ERROR2_LOOKUP, log_text):
                 self.error_info = {
+                    "pipeline": self.pipeline_config,
                     "node_block": match.group(1),
                     "target_work_flow": match.group(2),
                     "previous_node_block": match.group(3),

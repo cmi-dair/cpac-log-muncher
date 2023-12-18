@@ -3,7 +3,7 @@ import pathlib as pl
 import re
 import shlex
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Generator
 
 import numpy as np
@@ -106,7 +106,7 @@ class CpacRun:
     error_info: dict[str, str] | None = None
 
     start: datetime | None = None
-    diff: datetime | None = None
+    diff: timedelta | None = None
     success: bool = False
     crashfiles: list[pl.Path] | None = None
 
@@ -229,7 +229,9 @@ class CpacRun:
             details=pd.DataFrame({"Key": out_dict.keys(), "Value": out_dict.values()}).to_markdown(index=False),
         )
 
-        crashfiles_md = "\n".join([CpacRun.crashfile_to_md(crashfile) for crashfile in self.crashfiles])
+        crashfiles_md = (
+            "\n".join([CpacRun.crashfile_to_md(crashfile) for crashfile in self.crashfiles]) if self.crashfiles else ""
+        )
 
         if not self.success:
             logfile_tail = utils.file_tail(self.file, 100)

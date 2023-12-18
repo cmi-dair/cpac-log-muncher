@@ -193,6 +193,7 @@ class CpacRun:
 
     def record(self) -> dict[str, Any]:
         return {
+            "title": self.title,
             "file": self.file,
             "start": self.start,
             "duration": self.diff,

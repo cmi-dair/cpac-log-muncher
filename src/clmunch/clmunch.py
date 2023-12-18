@@ -21,7 +21,7 @@ RX_CPAC_END_SUBJECT_WORKFLOW = re.compile(r"^\s*Subject workflow: (.*)$")
 
 RC_CPAC_END_SUCCESS = re.compile(r"^\s*CPAC run complete:\s*$")
 RC_CPAC_END_SUCCESS_TEST_CONFIG = re.compile(
-    r"^\s*This has been a test of the pipeline configuration file, "
+    r"^\s*This has been a tests of the pipeline configuration file, "
     r"the pipeline was built successfully, but was not run\s*$"
 )
 RC_CPAC_END_ERROR = re.compile(r"^\s*CPAC run error:\s*$")
@@ -93,7 +93,7 @@ class CpacRun:
         max_time = None
 
         self.command: str | None = None
-        self.test_config: str | None = None
+        self.test_config: bool | None = None
         self.version: str | None = None
         self.pipeline_config: str | None = None
         self.subject_workflow: str | None = None

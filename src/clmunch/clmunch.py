@@ -218,13 +218,75 @@ class CpacRun:
         return details_md + crashfiles_md
 
 
+def _gen192_table_proc(df: pd.DataFrame, inplace: bool = False) -> pd.DataFrame:
+    if not inplace:
+        df = df.copy()
+
+    # Remove column target_work_flow
+    df = df.drop("target_work_flow", axis=1)
+
+    # 010_p010_base-abcd_perturb-ccs_step-functional-masking_conn-nilearn_nuisance-true/
+    # sub-NDARINV2VY7YYNW/output/log/
+    # pipeline_p010_base-abcd_perturb-ccs_step-functional-masking_conn-nilearn_nuisance-true/
+    # sub-NDARINV2VY7YYNW_ses-baselineYear1Arm1/pypeline.log
+    #
+    # delete everything after first / in pipeline_configh
+    df["pipeline_config"] = df["pipeline_config"].str.split("/").str[0]
+
+    # 010_p010_base-abcd_perturb-ccs_step-functional-masking_conn-nilearn_nuisance-true
+
+    # split pipeline_config into 3 columns
+    df[["id", "pid", "base_pipeline", "perturb_pipeline", "step", "connectivity", "nuisance"]] = df[
+        "pipeline_config"
+    ].str.split("_", expand=True)
+
+    # drop pid
+    df = df.drop("pid", axis=1)
+
+    # remove everything up to first dash in "base_pipeline", "perturb_pipeline", "step", "connectivity", "nuisance"
+    df["base_pipeline"] = df["base_pipeline"].str.split("-", n=1).str[1]
+    df["perturb_pipeline"] = df["perturb_pipeline"].str.split("-", n=1).str[1]
+    df["step"] = df["step"].str.split("-", n=1).str[1]
+    df["connectivity"] = df["connectivity"].str.split("-", n=1).str[1]
+    df["nuisance"] = df["nuisance"].str.split("-", n=1).str[1]
+    print(df.columns)
+
+    # reorder columns
+    df = df[
+        [
+            "id",
+            "base_pipeline",
+            "perturb_pipeline",
+            "step",
+            "connectivity",
+            "nuisance",
+            "missing_resources",
+            "node_block",
+            "previous_node_block",
+        ]
+    ]
+
+    # remove rows where 'missing_resources', 'node_block', 'previous_node_block' are same
+    # and add count of duplicates as column
+    df["number_of_pipelines_with_this_error"] = df.groupby(["missing_resources", "node_block", "previous_node_block"])[
+        "id"
+    ].transform("count")
+    df = df.drop_duplicates(subset=["missing_resources", "node_block", "previous_node_block"], keep="first")
+
+    # save to csv
+    df.to_csv("data_clean.csv", index=False)
+    # Replace _ with space in column names
+    df.columns = df.columns.str.replace("_", " ")
+    return df
+
+
 class CpacRunCollection:
     def __init__(self, search_path: pl.Path, base_path: pl.Path) -> None:
         self.search_path = search_path
         self.base_path = base_path
         self.runs = [CpacRun(f, base_path) for f in find_log_files(search_path)]
 
-    def report_md(self) -> str:
+    def report_md(self, include_gen192_table: bool = False) -> str:
         records = [r.record() for r in self.runs]
 
         df_overview = pd.DataFrame.from_records(records)
@@ -240,10 +302,12 @@ class CpacRunCollection:
 
         # Error table
         md_table_errors: str | None = None
-        error_records = [x.error_info for x in self.runs if x.error_info is not None]
-        if len(error_records) > 0:
-            df_errors = pd.DataFrame.from_records(error_records)
-            md_table_errors = df_errors.to_markdown(index=False)
+        if include_gen192_table:
+            error_records = [x.error_info for x in self.runs if x.error_info is not None]
+            if len(error_records) > 0:
+                df_errors = pd.DataFrame.from_records(error_records)
+                _gen192_table_proc(df_errors, inplace=True)
+                md_table_errors = df_errors.to_markdown(index=False)
 
         # Intro text
         md_intro_text = (
@@ -271,13 +335,16 @@ def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a report on CPAC runs.")
     parser.add_argument("path", type=str, help="Path to the directory containing the log files.")
     parser.add_argument("-o", "--output", type=str, help="Path to the output file.", required=False)
+    parser.add_argument(
+        "--gen192", action="store_true", help="Generate a missing resource report for the 192 pipeline configs."
+    )
     return parser
 
 
 def main() -> None:
     args = make_parser().parse_args()
     path_searchdir = pl.Path(args.path)
-    md_report = CpacRunCollection(path_searchdir, path_searchdir).report_md()
+    md_report = CpacRunCollection(path_searchdir, path_searchdir).report_md(include_gen192_table=args.gen192)
 
     if args.output:
         with open(args.output, "w", encoding="UTF-8") as f:

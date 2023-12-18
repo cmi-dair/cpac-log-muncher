@@ -52,7 +52,6 @@ RX_CPAC_ERROR3_LOOKUP = re.compile(
 )
 RXS_CPAC_ERROR_LOOKUP = [RX_CPAC_ERROR1_LOOKUP, RX_CPAC_ERROR2_LOOKUP, RX_CPAC_ERROR3_LOOKUP]
 
-
 TEMPLATE_REPORT_MD = """# CPAC run report\n
 {header}\n
 ## Summary\n
@@ -295,12 +294,8 @@ class CpacRunCollection:
         files_fts = list(find_failed_to_start_files(search_path))
         files_log = list(find_log_files(search_path))
         # remove failed to start files that have a log file in the same parent directory
-        files_fts = [f for f in files_fts if not any(f.parent == f2.parent for f2 in files_log)]
-        # print orphan fts
-        if len(files_fts) > 0:
-            print("Found orphan failed to start files:")
-            for f in files_fts:
-                print(f" - {f}")
+        # (i.e. the pipeline was started but crashed before generating a log directory)
+        self.runs_failed_to_start = [f for f in files_fts if not any(f.parent == f2.parent for f2 in files_log)]
 
         self.runs = [CpacRun(f, base_path) for f in find_log_files(search_path)]
         # sort by pipeline config (push None to end)
@@ -320,19 +315,27 @@ class CpacRunCollection:
         # Overview table
         md_table_overview = df_overview[["pipeline_config", "duration", "success"]].to_markdown(index=False)
 
+        # Failed to start table
+        md_table_failed_to_start = (
+            pd.DataFrame.from_records({"file": self.runs_failed_to_start}).to_markdown(index=False)
+            if len(self.runs_failed_to_start) > 0
+            else None
+        )
+
         # Error table
-        md_table_errors: str | None = None
+        md_table_gen192_errors: str | None = None
         if include_gen192_table:
             error_records = [x.error_info for x in self.runs if x.error_info is not None]
             if len(error_records) > 0:
                 df_errors = pd.DataFrame.from_records(error_records)
                 df_errors = _gen192_table_proc(df_errors)
-                md_table_errors = df_errors.to_markdown(index=False)
+                md_table_gen192_errors = df_errors.to_markdown(index=False)
 
         # Intro text
+        n_runs = len(self.runs) + len(self.runs_failed_to_start)
         md_intro_text = (
-            f"Ran {len(self.runs)} CPAC pipelines with "
-            f"{df_overview['success_state'].sum() / len(self.runs) * 100:.2f}% success rate.\n\n"
+            f"Ran {n_runs} CPAC pipelines with "
+            f"{df_overview['success_state'].sum() / n_runs * 100:.2f}% success rate.\n\n"
             f"Slowest pipeline took {df_overview['duration'].max()} (first until last log message).\n\n"
             f"Pipelines found under <code>{self.search_path}</code>.\n\n"
         )
@@ -346,7 +349,9 @@ class CpacRunCollection:
         return TEMPLATE_REPORT_MD.format(
             header=md_intro_text,
             footer=md_footer,
-            summary=md_table_overview + ("" if md_table_errors is None else ("\n\n" + md_table_errors)),
+            summary=md_table_overview
+            + ("" if md_table_failed_to_start is None else ("\n\n" + md_table_failed_to_start))
+            + ("" if md_table_gen192_errors is None else ("\n\n" + md_table_gen192_errors)),
             details=md_details,
         )
 

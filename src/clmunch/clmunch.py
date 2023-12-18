@@ -1,13 +1,14 @@
+import argparse
 import pathlib as pl
 import re
-from datetime import datetime
-import pandas as pd
-import argparse
-import numpy as np
-from typing import Any
 import shlex
-from . import utils
+from datetime import datetime
+from typing import Any, Generator
 
+import numpy as np
+import pandas as pd
+
+from . import utils
 
 # REGEXES
 
@@ -20,18 +21,36 @@ RX_CPAC_END_SUBJECT_WORKFLOW = re.compile(r"^\s*Subject workflow: (.*)$")
 
 RC_CPAC_END_SUCCESS = re.compile(r"^\s*CPAC run complete:\s*$")
 RC_CPAC_END_SUCCESS_TEST_CONFIG = re.compile(
-    r"^\s*This has been a test of the pipeline configuration file, the pipeline was built successfully, but was not run\s*$"
+    r"^\s*This has been a test of the pipeline configuration file, "
+    r"the pipeline was built successfully, but was not run\s*$"
 )
 RC_CPAC_END_ERROR = re.compile(r"^\s*CPAC run error:\s*$")
 
 RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK = re.compile(r"--preconfig\s*(\S+)")
 
 RX_CPAC_ERROR1_LOOKUP = re.compile(
-    r"LookupError: When trying to connect node block '([^']+)' to workflow '([^']+)' after node block '([^']+)':\s+\[!\] C-PAC says: None of the listed resources are in the resource pool:\s+" + "([^\n]*)"
+    r"LookupError: When trying to connect node block '([^']+)' "
+    r"to workflow '([^']+)' "
+    r"after node block '([^']+)':\s+\[!] "
+    r"C-PAC says: None of the listed resources are "
+    r"in the resource pool:\s+" + "([^\n]*)"
 )
 RX_CPAC_ERROR2_LOOKUP = re.compile(
-    r"LookupError: When trying to connect node block '([^']+)' to workflow '([^']+)' after node block '([^']+)':\s+\[!\] C-PAC says: None of the listed resources in the node block being connected exist in the resource pool\.\s+Resources:\s+" + "([^\n]*)"
+    r"LookupError: When trying to connect node block '([^']+)' "
+    r"to workflow '([^']+)' "
+    r"after node block '([^']+)':\s+\[!] "
+    r"C-PAC says: None of the listed resources "
+    r"in the node block being connected exist "
+    r"in the resource pool\.\s+Resources:\s+" + "([^\n]*)"
 )
+RX_CPAC_ERROR3_LOOKUP = re.compile(
+    r"LookupError: When trying to connect one of the node blocks \[([^]]+)] "
+    r"to workflow '([^']+)' "
+    r"after node block '([^']+)':\s+\[!] "
+    r"C-PAC says: None of the listed resources are "
+    r"in the resource pool:\s+" + "([^\n]*)"
+)
+RXS_CPAC_ERROR_LOOKUP = [RX_CPAC_ERROR1_LOOKUP, RX_CPAC_ERROR2_LOOKUP, RX_CPAC_ERROR3_LOOKUP]
 
 
 TEMPLATE_REPORT_MD = """# CPAC run report\n
@@ -55,12 +74,12 @@ TEMPLATE_SPOILER_MD = """<details>
 """
 
 
-def find_log_files(root: pl.Path):
+def find_log_files(root: pl.Path) -> Generator[pl.Path, None, None]:
     """Find all log files in the given directory recursively."""
     return root.glob("**/pypeline*.log")
 
 
-def find_crash_files(log_file: pl.Path):
+def find_crash_files(log_file: pl.Path) -> Generator[pl.Path, None, None]:
     """Find all crash files associated with a given log file."""
     return log_file.parent.glob("../../crash-*.txt")
 
@@ -109,28 +128,22 @@ class CpacRun:
                 elif match := re.match(RX_CPAC_END_SUBJECT_WORKFLOW, line):
                     self.subject_workflow = match.group(1)
                 elif (match := re.match(RC_CPAC_END_SUCCESS, line)) or (
-                    self.test_config
-                    and (match := re.match(RC_CPAC_END_SUCCESS_TEST_CONFIG, line))
+                    self.test_config and (match := re.match(RC_CPAC_END_SUCCESS_TEST_CONFIG, line))
                 ):
                     cpac_success = True
                 elif match := re.match(RC_CPAC_END_ERROR, line):
                     cpac_error = True
 
         if cpac_error or not cpac_success:
-            if match := re.search(RX_CPAC_ERROR1_LOOKUP, log_text):
-                self.error_info = {
-                    "node_block": match.group(1),
-                    "target_work_flow": match.group(2),
-                    "previous_node_block": match.group(3),
-                    "missing_resources": match.group(4),
-                }
-            elif match := re.search(RX_CPAC_ERROR2_LOOKUP, log_text):
-                self.error_info = {
-                    "node_block": match.group(1),
-                    "target_work_flow": match.group(2),
-                    "previous_node_block": match.group(3),
-                    "missing_resources": match.group(4),
-                }
+            for rx_error in RXS_CPAC_ERROR_LOOKUP:
+                if match := re.search(rx_error, log_text):
+                    self.error_info = {
+                        "node_block": match.group(1),
+                        "target_work_flow": match.group(2),
+                        "previous_node_block": match.group(3),
+                        "missing_resources": match.group(4),
+                    }
+                    break
 
         # calculate difference
         if max_time is not None and min_time is not None:
@@ -140,13 +153,7 @@ class CpacRun:
         # fallback to command line argument or filename
         if self.pipeline_config is None and self.command is not None:
             self.pipeline_config = (
-                fb.group(1)
-                if (
-                    fb := re.search(
-                        RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, self.command
-                    )
-                )
-                else None
+                fb.group(1) if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, self.command)) else None
             )
         if self.pipeline_config is None:
             self.pipeline_config = str(log_file.relative_to(base_dir))
@@ -172,7 +179,7 @@ class CpacRun:
         }
 
     @classmethod
-    def crashfile_to_md(cls, crashfile: pl.Path):
+    def crashfile_to_md(cls, crashfile: pl.Path) -> str:
         crashfile_content = ""
         with open(crashfile, "r") as f:
             crashfile_content = f.read()
@@ -186,9 +193,7 @@ class CpacRun:
             "File": f"`{self.log_file.absolute()}`",
             "Start": self.start,
             "Duration": self.diff,
-            "Command": ""
-            if self.command is None
-            else ("<code>" + "<br/>".join(shlex.split(self.command)) + "</code>"),
+            "Command": "" if self.command is None else ("<code>" + "<br/>".join(shlex.split(self.command)) + "</code>"),
             "Version": f"`{self.version}`",
             "Pipeline Config": self.pipeline_config,
             "Subject Workflow": self.subject_workflow,
@@ -197,14 +202,10 @@ class CpacRun:
 
         details_md = TEMPLATE_ENTRY_MD.format(
             file=self.pipeline_config,
-            details=pd.DataFrame(
-                {"Key": out_dict.keys(), "Value": out_dict.values()}
-            ).to_markdown(index=False),
+            details=pd.DataFrame({"Key": out_dict.keys(), "Value": out_dict.values()}).to_markdown(index=False),
         )
 
-        crashfiles_md = "\n".join(
-            [CpacRun.crashfile_to_md(crashfile) for crashfile in self.crashfiles]
-        )
+        crashfiles_md = "\n".join([CpacRun.crashfile_to_md(crashfile) for crashfile in self.crashfiles])
 
         if not self.success:
             logfile_tail = utils.file_tail(self.log_file, 100)
@@ -218,7 +219,7 @@ class CpacRun:
 
 
 class CpacRunCollection:
-    def __init__(self, search_path: pl.Path, base_path: pl.Path):
+    def __init__(self, search_path: pl.Path, base_path: pl.Path) -> None:
         self.search_path = search_path
         self.base_path = base_path
         self.runs = [CpacRun(f, base_path) for f in find_log_files(search_path)]
@@ -228,18 +229,14 @@ class CpacRunCollection:
 
         df_overview = pd.DataFrame.from_records(records)
         df_overview["success_state"] = df_overview["success"]
-        df_overview["success"] = np.where(
-            df_overview["success"], utils.HTML_SYMBOL_SUCCESS, utils.HTML_SYMBOL_FAILURE
-        )
+        df_overview["success"] = np.where(df_overview["success"], utils.HTML_SYMBOL_SUCCESS, utils.HTML_SYMBOL_FAILURE)
 
         df_overview["pipeline_config"] = df_overview["pipeline_config"].apply(
             lambda x: utils.markdown_heading_to_link(x)
         )
 
         # Overview table
-        md_table_overview = df_overview[
-            ["pipeline_config", "duration", "success"]
-        ].to_markdown(index=False)
+        md_table_overview = df_overview[["pipeline_config", "duration", "success"]].to_markdown(index=False)
 
         # Error table
         md_table_errors: str | None = None
@@ -250,7 +247,8 @@ class CpacRunCollection:
 
         # Intro text
         md_intro_text = (
-            f"Ran {len(self.runs)} CPAC pipelines with {df_overview['success_state'].sum() / len(self.runs) * 100:.2f}% success rate.\n\n"
+            f"Ran {len(self.runs)} CPAC pipelines with "
+            f"{df_overview['success_state'].sum() / len(self.runs) * 100:.2f}% success rate.\n\n"
             f"Slowest pipeline took {df_overview['duration'].max()} (first until last log message).\n\n"
             f"Pipelines found under <code>{self.search_path}</code>.\n\n"
         )
@@ -269,18 +267,14 @@ class CpacRunCollection:
         )
 
 
-def make_parser():
+def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a report on CPAC runs.")
-    parser.add_argument(
-        "path", type=str, help="Path to the directory containing the log files."
-    )
-    parser.add_argument(
-        "-o", "--output", type=str, help="Path to the output file.", required=False
-    )
+    parser.add_argument("path", type=str, help="Path to the directory containing the log files.")
+    parser.add_argument("-o", "--output", type=str, help="Path to the output file.", required=False)
     return parser
 
 
-def main():
+def main() -> None:
     args = make_parser().parse_args()
     path_searchdir = pl.Path(args.path)
     md_report = CpacRunCollection(path_searchdir, path_searchdir).report_md()

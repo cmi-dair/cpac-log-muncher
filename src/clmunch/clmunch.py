@@ -288,6 +288,7 @@ class CpacRunCollection:
 
     def report_md(self, include_gen192_table: bool = False) -> str:
         records = [r.record() for r in self.runs]
+        records.sort(key=lambda x: x["pipeline_config"])
 
         df_overview = pd.DataFrame.from_records(records)
         df_overview["success_state"] = df_overview["success"]

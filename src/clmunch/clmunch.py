@@ -218,9 +218,8 @@ class CpacRun:
         return details_md + crashfiles_md
 
 
-def _gen192_table_proc(df: pd.DataFrame, inplace: bool = False) -> pd.DataFrame:
-    if not inplace:
-        df = df.copy()
+def _gen192_table_proc(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
 
     # Remove column target_work_flow
     df = df.drop("target_work_flow", axis=1)
@@ -285,10 +284,11 @@ class CpacRunCollection:
         self.search_path = search_path
         self.base_path = base_path
         self.runs = [CpacRun(f, base_path) for f in find_log_files(search_path)]
+        # sort by pipeline config (push None to end)
+        self.runs.sort(key=lambda x: (x.pipeline_config is None, x.pipeline_config))
 
     def report_md(self, include_gen192_table: bool = False) -> str:
         records = [r.record() for r in self.runs]
-        records.sort(key=lambda x: x["pipeline_config"])
 
         df_overview = pd.DataFrame.from_records(records)
         df_overview["success_state"] = df_overview["success"]
@@ -307,7 +307,7 @@ class CpacRunCollection:
             error_records = [x.error_info for x in self.runs if x.error_info is not None]
             if len(error_records) > 0:
                 df_errors = pd.DataFrame.from_records(error_records)
-                _gen192_table_proc(df_errors, inplace=True)
+                df_errors = _gen192_table_proc(df_errors)
                 md_table_errors = df_errors.to_markdown(index=False)
 
         # Intro text

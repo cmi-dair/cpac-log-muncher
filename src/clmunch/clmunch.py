@@ -326,7 +326,7 @@ class CpacRunCollection:
         df_overview["success"] = np.where(df_overview["success"], utils.HTML_SYMBOL_SUCCESS, utils.HTML_SYMBOL_FAILURE)
 
         # Set to pipeline_config or file if no pipeline_config is available
-        df_overview["pipeline_config"] = df_overview["pipeline_config"].fillna(df_overview["file"])
+        df_overview["pipeline_config"] = df_overview["pipeline_config"].fillna(df_overview["file"].apply(str))
         df_overview["pipeline_config"] = df_overview["pipeline_config"].apply(
             lambda x: utils.markdown_heading_to_link(x)
         )

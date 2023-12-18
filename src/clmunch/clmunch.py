@@ -248,7 +248,6 @@ def _gen192_table_proc(df: pd.DataFrame) -> pd.DataFrame:
     df["step"] = df["step"].str.split("-", n=1).str[1]
     df["connectivity"] = df["connectivity"].str.split("-", n=1).str[1]
     df["nuisance"] = df["nuisance"].str.split("-", n=1).str[1]
-    print(df.columns)
 
     # reorder columns
     df = df[

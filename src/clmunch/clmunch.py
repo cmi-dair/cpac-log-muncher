@@ -321,7 +321,7 @@ class CpacRunCollection:
         self.runs: list[CpacRun] = [CpacRun.from_log_file(f, base_path) for f in find_log_files(search_path)]
         self.runs += [CpacRun.from_failed_to_start_file(f, base_path) for f in runs_failed_to_start]
         # sort by pipeline config (push None to end)
-        self.runs.sort(key=lambda x: (x.pipeline_config is None, x.pipeline_config))
+        self.runs.sort(key=lambda x: x.title)
 
     def report_md(self, include_gen192_table: bool = False) -> str:
         records = [r.record() for r in self.runs]

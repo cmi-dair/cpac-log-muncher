@@ -2,6 +2,7 @@ import argparse
 import pathlib as pl
 import re
 import shlex
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Generator
 
@@ -92,20 +93,34 @@ def find_crash_files(log_file: pl.Path) -> Generator[pl.Path, None, None]:
     return log_file.parent.glob("../../crash-*.txt")
 
 
+@dataclass
 class CpacRun:
-    def __init__(self, log_file: pl.Path, base_dir: pl.Path) -> None:
-        self.log_file = log_file
-        self.base_dir = base_dir
+    base_dir: pl.Path
+    file: pl.Path
+
+    command: str | None = None
+    test_config: bool | None = None
+    version: str | None = None
+    pipeline_config: str | None = None
+    subject_workflow: str | None = None
+    error_info: dict[str, str] | None = None
+
+    start: datetime | None = None
+    diff: datetime | None = None
+    success: bool = False
+    crashfiles: list[pl.Path] | None = None
+
+    @classmethod
+    def from_failed_to_start_file(cls, failed_to_start_file: pl.Path, base_dir: pl.Path) -> "CpacRun":
+        run = cls(base_dir, failed_to_start_file)
+        return run
+
+    @classmethod
+    def from_log_file(cls, log_file: pl.Path, base_dir: pl.Path) -> "CpacRun":
+        run = cls(base_dir, log_file)
 
         min_time = None
         max_time = None
-
-        self.command: str | None = None
-        self.test_config: bool | None = None
-        self.version: str | None = None
-        self.pipeline_config: str | None = None
-        self.subject_workflow: str | None = None
-        self.error_info: dict[str, str] | None = None
 
         cpac_success = False
         cpac_error = False
@@ -127,16 +142,16 @@ class CpacRun:
                         max_time = stamp
 
                 elif match := re.match(RX_CPAC_COMMAND, line):
-                    self.command = match.group(1)
-                    self.test_config = " test_config " in self.command
+                    run.command = match.group(1)
+                    run.test_config = " test_config " in run.command
                 elif match := re.match(RX_CPAC_VERSION, line):
-                    self.version = match.group(1)
+                    run.version = match.group(1)
                 elif match := re.match(RX_CPAC_END_PIPELINE_CONFIG, line):
-                    self.pipeline_config = match.group(1)
+                    run.pipeline_config = match.group(1)
                 elif match := re.match(RX_CPAC_END_SUBJECT_WORKFLOW, line):
-                    self.subject_workflow = match.group(1)
+                    run.subject_workflow = match.group(1)
                 elif (match := re.match(RC_CPAC_END_SUCCESS, line)) or (
-                    self.test_config and (match := re.match(RC_CPAC_END_SUCCESS_TEST_CONFIG, line))
+                    run.test_config and (match := re.match(RC_CPAC_END_SUCCESS_TEST_CONFIG, line))
                 ):
                     cpac_success = True
                 elif match := re.match(RC_CPAC_END_ERROR, line):
@@ -145,7 +160,7 @@ class CpacRun:
         if cpac_error or not cpac_success:
             for rx_error in RXS_CPAC_ERROR_LOOKUP:
                 if match := re.search(rx_error, log_text):
-                    self.error_info = {
+                    run.error_info = {
                         "node_block": match.group(1),
                         "target_work_flow": match.group(2),
                         "previous_node_block": match.group(3),
@@ -155,27 +170,28 @@ class CpacRun:
 
         # calculate difference
         if max_time is not None and min_time is not None:
-            self.diff = max_time - min_time
-        self.start: datetime | None = min_time
+            run.diff = max_time - min_time
+        run.start = min_time
 
         # fallback to command line argument or filename
-        if self.pipeline_config is None and self.command is not None:
-            self.pipeline_config = (
-                fb.group(1) if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, self.command)) else None
+        if run.pipeline_config is None and run.command is not None:
+            run.pipeline_config = (
+                fb.group(1) if (fb := re.search(RX_CPAC_PIPELINE_CONFIG_COMMAND_FALLBACK, run.command)) else None
             )
-        if self.pipeline_config is None:
-            self.pipeline_config = str(log_file.relative_to(base_dir))
+        if run.pipeline_config is None:
+            run.pipeline_config = str(log_file.relative_to(base_dir))
 
-        if self.error_info is not None:
-            self.error_info["pipeline_config"] = self.pipeline_config
+        if run.error_info is not None:
+            run.error_info["pipeline_config"] = run.pipeline_config
 
-        self.crashfiles = list(find_crash_files(log_file))
+        run.crashfiles = list(find_crash_files(log_file))
 
-        self.success: bool = cpac_success and not cpac_error
+        run.success = cpac_success and not cpac_error
+        return run
 
     def record(self) -> dict[str, Any]:
         return {
-            "file": self.log_file,
+            "file": self.file,
             "start": self.start,
             "duration": self.diff,
             "command": self.command,
@@ -198,7 +214,7 @@ class CpacRun:
 
     def md_report(self) -> str:
         out_dict = {
-            "File": f"`{self.log_file.absolute()}`",
+            "File": f"`{self.file.absolute()}`",
             "Start": self.start,
             "Duration": self.diff,
             "Command": "" if self.command is None else ("<code>" + "<br/>".join(shlex.split(self.command)) + "</code>"),
@@ -216,7 +232,7 @@ class CpacRun:
         crashfiles_md = "\n".join([CpacRun.crashfile_to_md(crashfile) for crashfile in self.crashfiles])
 
         if not self.success:
-            logfile_tail = utils.file_tail(self.log_file, 100)
+            logfile_tail = utils.file_tail(self.file, 100)
 
             crashfiles_md += "\n" + TEMPLATE_SPOILER_MD.format(
                 summary="Last 100 lines of logfile",
@@ -295,9 +311,10 @@ class CpacRunCollection:
         files_log = list(find_log_files(search_path))
         # remove failed to start files that have a log file in the same parent directory
         # (i.e. the pipeline was started but crashed before generating a log directory)
-        self.runs_failed_to_start = [f for f in files_fts if not any(f.parent == f2.parent for f2 in files_log)]
+        runs_failed_to_start = [f for f in files_fts if not any(f.parent == f2.parent for f2 in files_log)]
 
-        self.runs = [CpacRun(f, base_path) for f in find_log_files(search_path)]
+        self.runs: list[CpacRun] = [CpacRun.from_log_file(f, base_path) for f in find_log_files(search_path)]
+        self.runs += [CpacRun.from_failed_to_start_file(f, base_path) for f in runs_failed_to_start]
         # sort by pipeline config (push None to end)
         self.runs.sort(key=lambda x: (x.pipeline_config is None, x.pipeline_config))
 
@@ -315,13 +332,6 @@ class CpacRunCollection:
         # Overview table
         md_table_overview = df_overview[["pipeline_config", "duration", "success"]].to_markdown(index=False)
 
-        # Failed to start table
-        md_table_failed_to_start = (
-            pd.DataFrame.from_records({"file": self.runs_failed_to_start}).to_markdown(index=False)
-            if len(self.runs_failed_to_start) > 0
-            else None
-        )
-
         # Error table
         md_table_gen192_errors: str | None = None
         if include_gen192_table:
@@ -332,7 +342,7 @@ class CpacRunCollection:
                 md_table_gen192_errors = df_errors.to_markdown(index=False)
 
         # Intro text
-        n_runs = len(self.runs) + len(self.runs_failed_to_start)
+        n_runs = len(self.runs)
         md_intro_text = (
             f"Ran {n_runs} CPAC pipelines with "
             f"{df_overview['success_state'].sum() / n_runs * 100:.2f}% success rate.\n\n"
@@ -349,9 +359,7 @@ class CpacRunCollection:
         return TEMPLATE_REPORT_MD.format(
             header=md_intro_text,
             footer=md_footer,
-            summary=md_table_overview
-            + ("" if md_table_failed_to_start is None else ("\n\n" + md_table_failed_to_start))
-            + ("" if md_table_gen192_errors is None else ("\n\n" + md_table_gen192_errors)),
+            summary=md_table_overview + ("" if md_table_gen192_errors is None else ("\n\n" + md_table_gen192_errors)),
             details=md_details,
         )
 

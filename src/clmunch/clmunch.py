@@ -63,7 +63,7 @@ TEMPLATE_REPORT_MD = """# CPAC run report\n
 {footer}\n
 """
 
-TEMPLATE_ENTRY_MD = """### {file}\n
+TEMPLATE_ENTRY_MD = """### {title}\n
 {details}\n
 """
 
@@ -97,6 +97,7 @@ def find_crash_files(log_file: pl.Path) -> Generator[pl.Path, None, None]:
 class CpacRun:
     base_dir: pl.Path
     file: pl.Path
+    title: str
 
     command: str | None = None
     test_config: bool | None = None
@@ -112,12 +113,11 @@ class CpacRun:
 
     @classmethod
     def from_failed_to_start_file(cls, failed_to_start_file: pl.Path, base_dir: pl.Path) -> "CpacRun":
-        run = cls(base_dir, failed_to_start_file)
-        return run
+        return cls(base_dir, failed_to_start_file, str(failed_to_start_file.relative_to(base_dir)))
 
     @classmethod
     def from_log_file(cls, log_file: pl.Path, base_dir: pl.Path) -> "CpacRun":
-        run = cls(base_dir, log_file)
+        run = cls(base_dir, log_file, "PLACEHOLDER")
 
         min_time = None
         max_time = None
@@ -187,6 +187,8 @@ class CpacRun:
         run.crashfiles = list(find_crash_files(log_file))
 
         run.success = cpac_success and not cpac_error
+
+        run.title = run.pipeline_config
         return run
 
     def record(self) -> dict[str, Any]:
@@ -225,7 +227,7 @@ class CpacRun:
         }
 
         details_md = TEMPLATE_ENTRY_MD.format(
-            file=self.pipeline_config,
+            title=self.title,
             details=pd.DataFrame({"Key": out_dict.keys(), "Value": out_dict.values()}).to_markdown(index=False),
         )
 
@@ -328,13 +330,10 @@ class CpacRunCollection:
         df_overview["success"] = np.where(df_overview["success"], utils.HTML_SYMBOL_SUCCESS, utils.HTML_SYMBOL_FAILURE)
 
         # Set to pipeline_config or file if no pipeline_config is available
-        df_overview["pipeline_config"] = df_overview["pipeline_config"].fillna(df_overview["file"].apply(str))
-        df_overview["pipeline_config"] = df_overview["pipeline_config"].apply(
-            lambda x: utils.markdown_heading_to_link(x)
-        )
+        df_overview["title"] = df_overview["title"].apply(lambda x: utils.markdown_heading_to_link(x))
 
         # Overview table
-        md_table_overview = df_overview[["pipeline_config", "duration", "success"]].to_markdown(index=False)
+        md_table_overview = df_overview[["title", "duration", "success"]].to_markdown(index=False)
 
         # Error table
         md_table_gen192_errors: str | None = None

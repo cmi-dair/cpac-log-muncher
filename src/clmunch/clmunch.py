@@ -79,6 +79,15 @@ def find_log_files(root: pl.Path) -> Generator[pl.Path, None, None]:
     return root.glob("**/pypeline*.log")
 
 
+def find_failed_to_start_files(root: pl.Path) -> Generator[pl.Path, None, None]:
+    """
+    Sometimes CPAC crashes without even generating a log directory and just has this
+    file in the output directory. Not to be confused with the file of the same time sometimes generated
+    next to the pypeline.log file in the log directory.
+    """
+    return root.glob("**/failedToStart.log")
+
+
 def find_crash_files(log_file: pl.Path) -> Generator[pl.Path, None, None]:
     """Find all crash files associated with a given log file."""
     return log_file.parent.glob("../../crash-*.txt")
@@ -282,6 +291,17 @@ class CpacRunCollection:
     def __init__(self, search_path: pl.Path, base_path: pl.Path) -> None:
         self.search_path = search_path
         self.base_path = base_path
+
+        files_fts = list(find_failed_to_start_files(search_path))
+        files_log = list(find_log_files(search_path))
+        # remove failed to start files that have a log file in the same parent directory
+        files_fts = [f for f in files_fts if not any(f.parent == f2.parent for f2 in files_log)]
+        # print orphan fts
+        if len(files_fts) > 0:
+            print("Found orphan failed to start files:")
+            for f in files_fts:
+                print(f" - {f}")
+
         self.runs = [CpacRun(f, base_path) for f in find_log_files(search_path)]
         # sort by pipeline config (push None to end)
         self.runs.sort(key=lambda x: (x.pipeline_config is None, x.pipeline_config))

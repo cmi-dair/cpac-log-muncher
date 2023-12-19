@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Generator
 
+import humanize
 import numpy as np
 import pandas as pd
 
@@ -219,7 +220,7 @@ class CpacRun:
         out_dict = {
             "File": f"`{self.file.absolute()}`",
             "Start": self.start,
-            "Duration": self.diff,
+            "Duration": humanize.naturaldelta(self.diff),
             "Command": "" if self.command is None else ("<code>" + "<br/>".join(shlex.split(self.command)) + "</code>"),
             "Version": f"`{self.version}`",
             "Pipeline Config": self.pipeline_config,
@@ -337,6 +338,12 @@ class CpacRunCollection:
         # Set to pipeline_config or file if no pipeline_config is available
         df_overview["title"] = df_overview["title"].apply(lambda x: utils.markdown_heading_to_link(x))
 
+        slowest_pipeline_duration = df_overview["duration"].max()
+        # Set None durations to 0
+        df_overview["duration"] = df_overview["duration"].fillna(timedelta(0))
+        # humanize duration
+        df_overview["duration"] = df_overview["duration"].apply(lambda x: humanize.naturaldelta(x))
+
         # Overview table
         md_table_overview = df_overview[["title", "duration", "success"]].to_markdown(index=False)
 
@@ -354,7 +361,8 @@ class CpacRunCollection:
         md_intro_text = (
             f"Ran {n_runs} CPAC pipelines with "
             f"{df_overview['success_state'].sum() / n_runs * 100:.2f}% success rate.\n\n"
-            f"Slowest pipeline took {df_overview['duration'].max()} (first until last log message).\n\n"
+            f"Slowest pipeline took {humanize.naturaldelta(slowest_pipeline_duration)} "
+            f"(first until last log message).\n\n"
             f"Pipelines found under <code>{self.search_path}</code>.\n\n"
         )
 

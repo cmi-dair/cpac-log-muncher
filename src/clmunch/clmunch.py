@@ -320,6 +320,10 @@ class CpacRunCollection:
 
         self.runs: list[CpacRun] = [CpacRun.from_log_file(f, base_path) for f in find_log_files(search_path)]
         self.runs += [CpacRun.from_failed_to_start_file(f, base_path) for f in runs_failed_to_start]
+        # simplified unique titles
+        simplified_titles = utils.unique_substrings([r.title for r in self.runs])
+        for run, title in zip(self.runs, simplified_titles):
+            run.title = title
         # sort by pipeline config (push None to end)
         self.runs.sort(key=lambda x: x.title)
 

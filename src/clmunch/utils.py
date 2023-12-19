@@ -25,6 +25,24 @@ def _markdown_heading_to_id(heading: str) -> str:
 
 
 def markdown_heading_to_link(heading: str, title: str | None = None) -> str:
-    """Convert a markdown heading to a link."""
+    """Convert a Markdown heading to a link."""
     title = heading if title is None else title
     return f"[{title}](#{_markdown_heading_to_id(heading)})"
+
+
+def unique_substrings(strings: list[str]) -> list[str]:
+    """
+    Remove substrings that are contained in other strings in the list.
+    So the returned list is still unique, but individual strings are shorter.
+    """
+    # Check that strings are unique
+    assert len(set(strings)) == len(strings), "Strings must be unique"
+    assert all(len(s) > 0 for s in strings), "Strings must be non-empty"
+
+    max_len = max(len(x) for x in strings)
+
+    for i in range(1, max_len):
+        new_strings = [s[i:] for s in strings]
+        if len(set(new_strings)) == len(new_strings):
+            return new_strings
+    return strings

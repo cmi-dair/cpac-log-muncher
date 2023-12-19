@@ -42,7 +42,7 @@ def unique_substrings(strings: list[str]) -> list[str]:
     max_len = max(len(x) for x in strings)
 
     for i in range(1, max_len):
-        new_strings = [s[i:] for s in strings]
+        new_strings = [s[:-i] for s in strings]
         if len(set(new_strings)) == len(new_strings):
             return new_strings
     return strings
